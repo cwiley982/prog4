@@ -361,7 +361,11 @@ function setupWebGL() {
 // read models in, load them into webgl buffers
 function loadModels() {
     inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles"); // read in the triangle data
-
+    inputTriangles.sort(
+        function compareAlphas(a, b) {
+            return b.alpha - a.alpha;
+        });
+    
     try {
         if (inputTriangles == String.null)
             throw "Unable to load triangles file!";
@@ -692,7 +696,7 @@ function renderModels() {
         gl.uniform3fv(diffuseULoc,currSet.material.diffuse); // pass in the diffuse reflectivity
         gl.uniform3fv(specularULoc,currSet.material.specular); // pass in the specular reflectivity
         gl.uniform1f(shininessULoc,currSet.material.n); // pass in the specular exponent
-		gl.uniform1f(alphaULoc,currSet.material.alpha);
+		gl.uniform1f(alphaULoc,currSet.alpha);
         gl.uniform1i(Blinn_PhongULoc, Blinn_Phong);
 		gl.uniform1i(modulateULoc, modulate);
 		
