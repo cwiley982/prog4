@@ -1,7 +1,7 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
 
 /* assignment specific globals */
-const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog4/triangles.json"; // triangles file loc
+const INPUT_TRIANGLES_URL = "https://cwiley982.github.io/prog4/tris2.json"; // triangles file loc
 var defaultEye = vec3.fromValues(0.5,0.5,-0.5); // default eye position in world space
 var defaultCenter = vec3.fromValues(0.5,0.5,0.5); // default view direction in world space
 var defaultUp = vec3.fromValues(0,1,0); // default view up vector
@@ -37,8 +37,6 @@ var alphaULoc;
 var Blinn_PhongULoc;
 var modulateULoc;
 var vNormAttribLoc;
-
-// new locations
 var vTexCoordAttribLoc;
 var samplerULoc;
 
@@ -139,10 +137,6 @@ function handleKeyDown(event) {
             if (!event.getModifierState("Shift"))
                 Eye = vec3.add(Eye,Eye,vec3.scale(temp,viewRight,viewDelta));
             break;
-		case "KeyB":
-			modulate += 1;
-			if (modulate > 3) modulate = 1;
-			break;
         case "KeyD": // translate view right, rotate right with shift
             Center = vec3.add(Center,Center,vec3.scale(temp,viewRight,-viewDelta));
             if (!event.getModifierState("Shift"))
@@ -226,7 +220,8 @@ function handleKeyDown(event) {
                 translateModel(vec3.scale(temp,Up,-viewDelta));
             break;
         case "KeyB":
-        		Blinn_Phong = !Blinn_Phong;
+        	modulate += 1;
+			if (modulate > 3) modulate = 1;
         	break;
         case "KeyN":
         		handleKeyDown.modelOn.material.n = (handleKeyDown.modelOn.material.n + 1)%20;
@@ -252,7 +247,7 @@ function handleKeyDown(event) {
         			handleKeyDown.modelOn.material.diffuse[2] = 0;
         		console.log(handleKeyDown.modelOn.material.diffuse);
         	break;
-         case "Numpad3":        		 
+        case "Numpad3":        		 
         		vec3.add(handleKeyDown.modelOn.material.specular, handleKeyDown.modelOn.material.specular, vec3.fromValues(0.1,0.1,0.1));
         		if(handleKeyDown.modelOn.material.specular[0] > 1.0)
         			handleKeyDown.modelOn.material.specular[0] = 0;
@@ -321,6 +316,44 @@ function isPowerOf2(value) {
   return (value & (value - 1)) == 0;
 }
 
+
+function sortTransparentTriangles() {
+	var temp = [];
+	var i = 0;
+	var length = inputTriangles.length;
+	while (i < length) {
+		if (inputTriangles[i].material.alpha == 1) {
+			temp.push(inputTriangles[i]);
+		} else {
+			break;
+		}
+		i++;
+	}
+	
+	var used = [];
+	for (var j = i; j < length; j++) {
+		used.push(false);
+	}
+	
+	var maxZ;
+	var maxZLoc;
+	for (var j = i; j < length; j++) {
+		maxZ = -1.0;
+		maxZLoc = -1.0;
+		for (var k = i; k < length; k++) {
+			if (inputTriangles[k].vertices[0][2] >= maxZ && !used[k-i]) {
+				maxZ = inputTriangles[k].vertices[0][2];
+				maxZLoc = k;
+			}
+		}
+		temp.push(inputTriangles[maxZLoc]);
+		used[maxZLoc - i] = true;
+	}
+	
+	inputTriangles = temp;
+}
+
+
 // set up the webGL environment
 function setupWebGL() {
     
@@ -363,8 +396,10 @@ function loadModels() {
     inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles"); // read in the triangle data
     inputTriangles.sort(
         function compareAlphas(a, b) {
-            return b.alpha - a.alpha;
+            return b.material.alpha - a.material.alpha;
         });
+	console.log(inputTriangles);
+	sortTransparentTriangles();
     
     try {
         if (inputTriangles == String.null)
@@ -432,10 +467,11 @@ function loadModels() {
                 triangleBuffers.push(gl.createBuffer()); // init empty triangle index buffer
                 gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffers[whichSet]); // activate that buffer
                 gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(inputTriangles[whichSet].glTriangles),gl.STATIC_DRAW); // data in
-
             } // end for each triangle set 
         	var temp = vec3.create();
         	viewDelta = vec3.length(vec3.subtract(temp,maxCorner,minCorner)) / 100; // set global
+			
+			console.log(triangleBuffers);
         } // end if triangle file loaded
     } // end try 
     
@@ -685,6 +721,15 @@ function renderModels() {
     for (var whichTriSet=0; whichTriSet<numTriangleSets; whichTriSet++) {
         currSet = inputTriangles[whichTriSet];
         
+		if (whichTriSet == 0) {
+			gl.depthMask(true);
+		}
+		if (currSet.alpha != 1) {
+			gl.depthMask(false);
+			gl.enable(gl.BLEND);
+			gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+		}
+		
         // make model transform, add to view project
         makeModelTransform(currSet);
         mat4.multiply(pvmMatrix,pvMatrix,mMatrix); // project * view * model
@@ -717,7 +762,6 @@ function renderModels() {
         // triangle buffer: activate and render
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,triangleBuffers[whichTriSet]); // activate
         gl.drawElements(gl.TRIANGLES,3*triSetSizes[whichTriSet],gl.UNSIGNED_SHORT,0); // render
-        
     } // end for each triangle set
 } // end render model
 
